@@ -325,7 +325,7 @@ function b64toU8(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for
 function exportDocx(){
  const D=window.docx;if(!D){alert('ไลบรารีสร้างเอกสารยังโหลดไม่เสร็จ กรุณาลองใหม่');return;}
  const r=current();if(!r){alert('กรุณาเลือกโรงพยาบาล');return;}
- const {Document,Packer,Paragraph,TextRun,AlignmentType,Table,TableRow,TableCell,WidthType,BorderStyle,Header,Footer,ImageRun,PageNumber,TabStopType}=D;
+ const {Document,Packer,Paragraph,TextRun,AlignmentType,Table,TableRow,TableCell,WidthType,BorderStyle,Header,Footer,ImageRun,PageNumber,TabStopType,PageBreak}=D;
  const FONT="TH SarabunPSK";
  const P=(text,o={})=>new Paragraph({alignment:o.al||AlignmentType.THAI_DISTRIBUTE&&undefined||AlignmentType.LEFT,spacing:{after:o.after!=null?o.after:80,line:o.line||300},
    indent:o.ind?{firstLine:o.ind}:undefined,
@@ -378,7 +378,36 @@ function exportDocx(){
  const itemTable=new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:itRows});
 
  const today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+ // ===== บันทึกข้อความ (หน้าแรก) — สรุประดับจังหวัด =====
+ const pool=REC.filter(x=>x.year===r.year&&x.quarter===r.quarter);const N=pool.length;
+ const avgP=N?(pool.reduce((s,x)=>s+(+x.total),0)/N).toFixed(1):'-';
+ const nA=pool.filter(x=>x.grade==='A').length, nOther=N-nA;
+ const weakP=[];SM.forEach(s=>{const nf=pool.filter(x=>secSum(x,s)>=s.max).length;if(nf<N)weakP.push({name:secShort(s.name),nf});});
+ weakP.sort((a,b)=>a.nf-b.nf);const topWeakP=weakP.slice(0,3).map(w=>w.name).join(', ')||'รักษาคุณภาพทุกหมวด';
+ const mlbl=(label,val,o={})=>new Paragraph({spacing:{after:o.after!=null?o.after:40,line:300},children:[new TextRun({text:label,bold:true,size:32,font:FONT}),new TextRun({text:val,size:32,font:FONT})]});
+ const mbody=(t)=>new Paragraph({alignment:AlignmentType.JUSTIFIED,spacing:{after:60,line:300},indent:{firstLine:720},children:[new TextRun({text:t,size:32,font:FONT})]});
+ const msig=(t)=>new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0,line:300},indent:{left:4400},keepLines:true,children:[new TextRun({text:t,size:32,font:FONT})]});
+ const memo=[
+  new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:110,line:320},children:[new TextRun({text:'บันทึกข้อความ',bold:true,size:46,font:FONT})]}),
+  mlbl('ส่วนราชการ  ','กลุ่มงานประกันสุขภาพ สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู โทร. ๐ ๔๒๓๑ ๒๐๔๙-๕๐'),
+  new Paragraph({spacing:{after:40,line:300},tabStops:[{type:TabStopType.LEFT,position:6400}],children:[
+    new TextRun({text:'ที่  ',bold:true,size:32,font:FONT}),new TextRun({text:'นภ ๐๐๓๓.๐๐๔/.............',size:32,font:FONT}),
+    new TextRun({text:'\tวันที่  ',bold:true,size:32,font:FONT}),new TextRun({text:today,size:32,font:FONT})]}),
+  mlbl('เรื่อง  ','สรุปผลออกตรวจการประเมิน ศูนย์จัดเก็บรายได้หน่วยบริการ'),
+  new Paragraph({spacing:{after:50,line:240},children:[new TextRun({text:'.'.repeat(120),size:26,font:FONT,color:"555555"})]}),
+  mlbl('เรียน  ','นายแพทย์สาธารณสุขจังหวัดหนองบัวลำภู',{after:130}),
+  mbody(`ด้วยกลุ่มงานประกันสุขภาพ สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู ร่วมกับคณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO) ได้ดำเนินการออกตรวจประเมินศูนย์จัดเก็บรายได้คุณภาพ (7S7C) ของหน่วยบริการในจังหวัดหนองบัวลำภู ประจำปีงบประมาณ พ.ศ. ${r.year} ไตรมาส ${r.quarter} จำนวน ${N} แห่ง เพื่อพัฒนาประสิทธิภาพระบบบริหารการเงินการคลังและการจัดเก็บรายได้ของหน่วยบริการให้เป็นไปตามเกณฑ์มาตรฐาน`),
+  mbody(`ผลการประเมินในภาพรวม มีคะแนนเฉลี่ย ${avgP} คะแนน โดยมีหน่วยบริการที่ผ่านเกณฑ์ระดับ A (ดีมาก) จำนวน ${nA} แห่ง${nOther?(' และระดับรองลงมา '+nOther+' แห่ง'):''} ประเด็นที่ควรพัฒนาร่วมกันของจังหวัด ได้แก่ ${topWeakP} ทั้งนี้ ผลการประเมินของโรงพยาบาล${r.hospital.replace('รพ.','')} ได้คะแนนรวม ${(+r.total).toFixed(2)} คะแนน อยู่ในระดับ ${r.grade} (${r.level}) โดยมีรายละเอียดผลการประเมินรายข้อ ข้อค้นพบ ข้อเสนอแนะ และเป้าหมายการพัฒนา ปรากฏตามเอกสารแนบท้ายบันทึกนี้`),
+  mbody('จึงเรียนมาเพื่อโปรดทราบ และพิจารณาให้ข้อเสนอแนะเชิงนโยบายในการพัฒนาศูนย์จัดเก็บรายได้คุณภาพของหน่วยบริการต่อไป'),
+  new Paragraph({spacing:{before:60}}),
+  msig('(ลงชื่อ)..............................................'),
+  msig('(..............................................)'),
+  msig('หัวหน้ากลุ่มงานประกันสุขภาพ'),
+  new Paragraph({children:[new PageBreak()]})
+ ];
  const children=[
+  ...memo,
+  new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:60,line:300},children:[new TextRun({text:'เอกสารแนบท้ายบันทึกข้อความ',bold:true,size:30,font:FONT,color:"888888"})]}),
   new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0,line:300},children:[new TextRun({text:'สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู',bold:true,size:36,font:FONT})]}),
   new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0,line:300},children:[new TextRun({text:'คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO) จังหวัดหนองบัวลำภู',size:32,font:FONT})]}),
   new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:160,line:300},children:[new TextRun({text:'____________________________________________',size:24,font:FONT,color:"888888"})]}),
@@ -424,7 +453,7 @@ function exportDocx(){
    }]
  });
  Packer.toBlob(doc).then(blob=>{
-   const fn='สรุปผลการประเมิน_'+r.hospital.replace('รพ.','')+'_'+r.year+'_'+r.quarter+'_รอบ'+r.round+'.docx';
+   const fn='บันทึกข้อความ_สรุปผลออกตรวจประเมิน_'+r.hospital.replace('รพ.','')+'_'+r.year+'_'+r.quarter+'.docx';
    saveAs(blob,fn);
  }).catch(e=>alert('สร้างเอกสารไม่สำเร็จ: '+e.message));
 }
