@@ -481,153 +481,168 @@ function renderSituation(r){
   (passA?'ซึ่งผ่านเกณฑ์ระดับ A (มากกว่า 80 คะแนน) สะท้อนระบบจัดเก็บรายได้ที่มีคุณภาพ':'ซึ่งยังไม่ผ่านเกณฑ์ระดับ A (ต้องมากกว่า 80 คะแนน) จึงควรได้รับการสนับสนุนและพัฒนาเป็นลำดับต้น')+'.';
 }
 
-/* ===== Presentation builder (โทนฟ้าคราม + เขียว) — native .pptx & .pdf ===== */
+/* ===== Presentation builder (โทนฟ้าคราม + เขียว) — โฟกัสโรงพยาบาลที่เลือก — native .pptx & .pdf ===== */
 function buildDeck(){
- const y=+fy().value,q=fq().value;
- const pool=REC.filter(x=>x.year===y&&x.quarter===q).sort((a,b)=>(+b.total)-(+a.total));
- const n=pool.length||1;
- const avg=(pool.reduce((s,x)=>s+(+x.total),0)/n).toFixed(2);
- const nA=pool.filter(x=>x.grade==='A').length, nB=pool.filter(x=>x.grade==='B').length, nOther=pool.length-nA-nB;
- const strong=[];SM.forEach(s=>{if(pool.length&&pool.every(x=>secSum(x,s)>=s.max))strong.push(secShort(s.name));});
- const weak=[];SM.forEach(s=>{const nf=pool.filter(x=>secSum(x,s)>=s.max).length;if(nf<pool.length)weak.push({name:secShort(s.name),notfull:pool.length-nf});});
- weak.sort((a,b)=>b.notfull-a.notfull);
- const hosp=pool.map(r=>{const a=analyze(r);const hw=[];a.improve.forEach(s=>s.fails.forEach(t=>hw.push(t)));
-   return {r,strengths:a.good.map(secShort),gaps:a.improve.map(s=>secShort(s.name)+' (ขาด '+s.miss+' ข้อ)'),homework:hw};});
- return {y,q,pool,N:pool.length,avg,nA,nB,nOther,strong,weak,hosp};
+ const r=current();
+ const y=r.year,q=r.quarter;
+ const pool=REC.filter(x=>x.year===y&&x.quarter===q);
+ const provAvg=(pool.reduce((s,x)=>s+(+x.total),0)/(pool.length||1)).toFixed(2);
+ const a=analyze(r);
+ const sections=SM.map(s=>{let code;
+   if(s.group==='ONSITE'){const m=s.name.match(/^(\d+)/);code='ON'+(m?m[1]:'');}
+   else{const m=s.name.match(/^(S3\+4|S\d+|C\d+|P\d+)/);code=m?m[1]:s.name.slice(0,3);}
+   return {group:s.group,code,name:secShort(s.name),score:secSum(r,s),max:s.max};});
+ const improve=a.improve.map(s=>({name:secShort(s.name),miss:s.miss,fails:s.fails}));
+ const homework=[];improve.forEach(s=>s.fails.forEach(t=>homework.push(t)));
+ return {r,y,q,round:r.round,pool,provN:pool.length,provAvg,strong:a.good.map(secShort),improve,homework,sections};
 }
 const _gc=g=>({A:'0E9F6E',B:'0EA5E9',C:'F59E0B',D:'F97316',F:'EF4444'}[g]||'6B7280');
 
 /* ---------------- PPTX ---------------- */
 function pptxBuild(D){
  const Pp=window.PptxGenJS, x=new Pp(); x.defineLayout({name:'W',width:13.333,height:7.5}); x.layout='W';
- x.author='สสจ.หนองบัวลำภู'; x.title='สรุปผลประเมิน 7S7C '+D.y+' '+D.q;
- const NAVY='1E2A78',IND='4F46E5',IND2='6366F1',GREEN='0E9F6E',GREEN2='10B981',MINT='E7F8F0',LAV='EEF1FD',INK='1F2350',MUT='6B7280',LINE='E2E5F5',PALE='F6F7FD',W='FFFFFF';
- const F='Sarabun';
+ x.author='สสจ.หนองบัวลำภู'; x.title='สรุปผลประเมิน 7S7C '+D.r.hospital+' '+D.y+' '+D.q;
+ const NAVY='1E2A78',IND='4F46E5',IND2='6366F1',GREEN='0E9F6E',MINT='E7F8F0',LAV='EEF1FD',INK='1F2350',MUT='6B7280',LINE='E2E5F5',PALE='F6F7FD',W='FFFFFF';
+ const F='Sarabun', gcol=_gc(D.r.grade);
  const sh=()=>({type:'outer',color:'1E2A78',blur:9,offset:3,angle:90,opacity:0.12});
+ const cf=(v,m)=>{const t=v/m;return t>=1?'EAFBF3':(t>=0.5?'FEF6E7':'FDECEC');};
+ const ct=(v,m)=>{const t=v/m;return t>=1?'0E7A52':(t>=0.5?'B45309':'C0392B');};
  function hdr(s,eye,title){ s.background={color:PALE};
    s.addShape(x.shapes.RECTANGLE,{x:0.55,y:0.5,w:0.16,h:0.62,fill:{color:GREEN}});
    s.addText(eye,{x:0.82,y:0.46,w:11,h:0.3,fontFace:F,fontSize:12.5,color:IND,bold:true,charSpacing:1,margin:0});
-   s.addText(title,{x:0.8,y:0.72,w:12,h:0.6,fontFace:F,fontSize:26,color:INK,bold:true,margin:0});
+   s.addText(title,{x:0.8,y:0.72,w:11.6,h:0.6,fontFace:F,fontSize:25,color:INK,bold:true,margin:0});
    s.addShape(x.shapes.RECTANGLE,{x:0,y:7.34,w:13.333,h:0.16,fill:{color:NAVY}});
-   s.addText('ศูนย์จัดเก็บรายได้คุณภาพ (7S7C) • ปีงบประมาณ '+D.y+' '+D.q+' • จังหวัดหนองบัวลำภู',{x:0.5,y:7.04,w:12.3,h:0.28,fontFace:F,fontSize:9,color:MUT,margin:0});
+   s.addText(D.r.hospital+' • ปีงบประมาณ '+D.y+' '+D.q+' รอบที่ '+D.round+' • จังหวัดหนองบัวลำภู',{x:0.5,y:7.04,w:12.3,h:0.28,fontFace:F,fontSize:9,color:MUT,margin:0});
  }
  // 1 TITLE
  {const s=x.addSlide(); s.background={color:NAVY};
   s.addShape(x.shapes.RECTANGLE,{x:0,y:0,w:13.333,h:0.22,fill:{color:GREEN}});
   s.addShape(x.shapes.OVAL,{x:9.7,y:-2.4,w:6.6,h:6.6,fill:{color:IND,transparency:45},line:{type:'none'}});
   s.addShape(x.shapes.OVAL,{x:-1.8,y:5,w:4.6,h:4.6,fill:{color:GREEN,transparency:60},line:{type:'none'}});
-  s.addShape(x.shapes.OVAL,{x:0.9,y:0.95,w:1.45,h:1.45,fill:{color:W},shadow:sh()});
-  try{s.addImage({data:'image/jpeg;base64,'+LOGO_B64,x:1.06,y:1.11,w:1.13,h:1.13});}catch(e){}
-  s.addText('สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู',{x:2.5,y:1.1,w:9.8,h:0.4,fontFace:F,fontSize:15,color:'C7D2FE',bold:true,valign:'middle',margin:0});
-  s.addText('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO)',{x:2.5,y:1.5,w:9.8,h:0.4,fontFace:F,fontSize:12.5,color:'A5B4FC',valign:'middle',margin:0});
-  s.addText('สรุปผลการประเมินศูนย์จัดเก็บรายได้คุณภาพ',{x:0.9,y:2.95,w:11.6,h:0.6,fontFace:F,fontSize:30,color:W,margin:0});
-  s.addText([{text:'ระบบ 7S7C + 7E + On-site CSMBS  ',options:{color:W}},{text:'(100 คะแนน)',options:{color:'6EE7B7'}}],{x:0.9,y:3.55,w:11.6,h:1,fontFace:F,fontSize:40,bold:true,margin:0});
-  const chips=[['ปีงบประมาณ','พ.ศ. '+D.y],['ไตรมาส',D.q.replace('Q','')+' / '+D.y],['หน่วยรับประเมิน',D.N+' แห่ง'],['คะแนนเฉลี่ย',D.avg]];
-  let cx=0.9; chips.forEach(c=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:4.85,w:2.78,h:0.95,fill:{color:'27357E'},line:{color:IND2,width:1},rectRadius:0.1});
-    s.addText(c[0],{x:cx,y:4.96,w:2.78,h:0.3,fontFace:F,fontSize:11,color:'A5B4FC',align:'center',margin:0});
-    s.addText(c[1],{x:cx,y:5.26,w:2.78,h:0.42,fontFace:F,fontSize:17,color:W,bold:true,align:'center',margin:0}); cx+=2.93;});
-  s.addText('เกณฑ์ระดับ A (ดีมาก) มากกว่า 80 คะแนน  •  ดึงข้อมูลจากระบบประเมินจริง',{x:0.9,y:6.2,w:11.6,h:0.4,fontFace:F,fontSize:12.5,color:'C7D2FE',margin:0});
+  s.addShape(x.shapes.OVAL,{x:0.9,y:0.85,w:1.4,h:1.4,fill:{color:W},shadow:sh()});
+  try{s.addImage({data:'image/jpeg;base64,'+LOGO_B64,x:1.05,y:1.0,w:1.1,h:1.1});}catch(e){}
+  s.addText('สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู',{x:2.45,y:1.0,w:9.8,h:0.4,fontFace:F,fontSize:14,color:'C7D2FE',bold:true,valign:'middle',margin:0});
+  s.addText('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO)',{x:2.45,y:1.38,w:9.8,h:0.4,fontFace:F,fontSize:12,color:'A5B4FC',valign:'middle',margin:0});
+  s.addText('สรุปผลการประเมินศูนย์จัดเก็บรายได้คุณภาพ (7S7C)',{x:0.9,y:2.7,w:11.6,h:0.5,fontFace:F,fontSize:22,color:'C7D2FE',margin:0});
+  s.addText(D.r.hospital,{x:0.9,y:3.2,w:9.0,h:1.0,fontFace:F,fontSize:46,bold:true,color:W,margin:0});
+  // grade badge
+  s.addShape(x.shapes.OVAL,{x:10.4,y:3.0,w:1.9,h:1.9,fill:{color:gcol},shadow:sh()});
+  s.addText(D.r.grade,{x:10.4,y:3.05,w:1.9,h:1.3,fontFace:F,fontSize:60,bold:true,color:W,align:'center',valign:'middle',margin:0});
+  s.addText(D.r.level,{x:10.4,y:4.28,w:1.9,h:0.4,fontFace:F,fontSize:14,color:W,align:'center',margin:0});
+  const chips=[['ปีงบประมาณ','พ.ศ. '+D.y],['ไตรมาส',D.q.replace('Q','')+' / '+D.y],['รอบที่',''+D.round],['คะแนนรวม',(+D.r.total).toFixed(2)]];
+  let cx=0.9; chips.forEach(c=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:4.95,w:2.2,h:0.95,fill:{color:'27357E'},line:{color:IND2,width:1},rectRadius:0.1});
+    s.addText(c[0],{x:cx,y:5.06,w:2.2,h:0.3,fontFace:F,fontSize:10.5,color:'A5B4FC',align:'center',margin:0});
+    s.addText(c[1],{x:cx,y:5.36,w:2.2,h:0.42,fontFace:F,fontSize:16,color:W,bold:true,align:'center',margin:0}); cx+=2.34;});
+  s.addText('เฉลี่ยจังหวัด '+D.provAvg+' คะแนน (จาก '+D.provN+' แห่ง) • เกณฑ์ระดับ A (ดีมาก) มากกว่า 80 คะแนน',{x:0.9,y:6.25,w:11.6,h:0.4,fontFace:F,fontSize:12,color:'C7D2FE',margin:0});
  }
  // 2 CRITERIA
  {const s=x.addSlide(); hdr(s,'เกณฑ์การประเมิน','โครงสร้างการให้คะแนน รวม 100 คะแนน');
   const cards=[['64','7S7C','ระบบจัดเก็บรายได้คุณภาพ Advance',IND],['33','7E','ระบบการบริหารเจ้าหนี้',IND2],['3','On-site','สิทธิเบิกจ่ายตรงกรมบัญชีกลาง (CSMBS)',GREEN]];
-  let cx=0.8; cards.forEach(c=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:1.7,w:3.85,h:2.6,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.08,shadow:sh()});
+  let cx=0.8; cards.forEach(c=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:1.7,w:3.85,h:2.55,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.08,shadow:sh()});
     s.addShape(x.shapes.RECTANGLE,{x:cx,y:1.7,w:3.85,h:0.14,fill:{color:c[3]}});
-    s.addText(c[0],{x:cx,y:1.95,w:3.85,h:1.0,fontFace:F,fontSize:54,color:c[3],bold:true,align:'center',margin:0});
-    s.addText('คะแนน',{x:cx,y:2.92,w:3.85,h:0.28,fontFace:F,fontSize:11,color:MUT,align:'center',margin:0});
-    s.addText(c[1],{x:cx,y:3.2,w:3.85,h:0.4,fontFace:F,fontSize:20,color:INK,bold:true,align:'center',margin:0});
-    s.addText(c[2],{x:cx+0.2,y:3.64,w:3.45,h:0.55,fontFace:F,fontSize:11,color:IND,bold:true,align:'center',margin:0}); cx+=4.07;});
-  // grade scale
-  s.addText('เกณฑ์การจัดระดับ (Grade)',{x:0.8,y:4.55,w:11,h:0.34,fontFace:F,fontSize:14,color:INK,bold:true,margin:0});
+    s.addText(c[0],{x:cx,y:1.92,w:3.85,h:1.0,fontFace:F,fontSize:52,color:c[3],bold:true,align:'center',margin:0});
+    s.addText('คะแนน',{x:cx,y:2.88,w:3.85,h:0.28,fontFace:F,fontSize:11,color:MUT,align:'center',margin:0});
+    s.addText(c[1],{x:cx,y:3.16,w:3.85,h:0.4,fontFace:F,fontSize:20,color:INK,bold:true,align:'center',margin:0});
+    s.addText(c[2],{x:cx+0.2,y:3.6,w:3.45,h:0.55,fontFace:F,fontSize:11,color:IND,bold:true,align:'center',margin:0}); cx+=4.07;});
+  s.addText('เกณฑ์การจัดระดับ (Grade)',{x:0.8,y:4.5,w:11,h:0.34,fontFace:F,fontSize:14,color:INK,bold:true,margin:0});
   const gr=[['A','ดีมาก','> 80','0E9F6E'],['B','ดี','71–80','0EA5E9'],['C','ปานกลาง','61–70','F59E0B'],['D','พอใช้','51–60','F97316'],['F','ปรับปรุง','≤ 50','EF4444']];
   let gx=0.8; const gw=(11.73-0.4*4)/5;
-  gr.forEach(g=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:gx,y:4.95,w:gw,h:1.25,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.06,shadow:sh()});
-    s.addShape(x.shapes.RECTANGLE,{x:gx,y:4.95,w:gw,h:0.4,fill:{color:g[3]}});
-    s.addText(g[0],{x:gx,y:4.95,w:gw,h:0.4,fontFace:F,fontSize:16,color:W,bold:true,align:'center',valign:'middle',margin:0});
-    s.addText(g[1],{x:gx,y:5.42,w:gw,h:0.34,fontFace:F,fontSize:14,color:INK,bold:true,align:'center',margin:0});
-    s.addText(g[2]+' คะแนน',{x:gx,y:5.78,w:gw,h:0.32,fontFace:F,fontSize:11,color:MUT,align:'center',margin:0}); gx+=gw+0.4;});
+  gr.forEach(g=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:gx,y:4.9,w:gw,h:1.2,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.06,shadow:sh()});
+    s.addShape(x.shapes.RECTANGLE,{x:gx,y:4.9,w:gw,h:0.4,fill:{color:g[3]}});
+    s.addText(g[0],{x:gx,y:4.9,w:gw,h:0.4,fontFace:F,fontSize:16,color:W,bold:true,align:'center',valign:'middle',margin:0});
+    s.addText(g[1],{x:gx,y:5.35,w:gw,h:0.34,fontFace:F,fontSize:13.5,color:INK,bold:true,align:'center',margin:0});
+    s.addText(g[2]+' คะแนน',{x:gx,y:5.7,w:gw,h:0.32,fontFace:F,fontSize:10.5,color:MUT,align:'center',margin:0}); gx+=gw+0.4;});
  }
- // 3 OVERVIEW TABLE
- {const s=x.addSlide(); hdr(s,'ผลการประเมิน','ผลภาพรวมรายโรงพยาบาล');
-  const head=['โรงพยาบาล','7S7C\n(64)','7E\n(33)','On-site\n(15)','รวม\n(100)','เกรด','ระดับ'].map(t=>({text:t,options:{fill:{color:NAVY},color:W,bold:true,align:'center',fontFace:F,fontSize:13}}));
-  const rows=[head];
-  D.pool.forEach((r,i)=>{const f=i%2?'EEF1FD':W;rows.push([
-    {text:r.hospital,options:{fill:{color:f},align:'left',color:INK,bold:true,fontFace:F,fontSize:12.5}},
-    {text:''+r.s7s7c,options:{fill:{color:f},align:'center',color:INK,fontFace:F,fontSize:12.5}},
-    {text:''+r.e7,options:{fill:{color:f},align:'center',color:INK,fontFace:F,fontSize:12.5}},
-    {text:''+r.onraw,options:{fill:{color:f},align:'center',color:INK,fontFace:F,fontSize:12.5}},
-    {text:(+r.total).toFixed(2),options:{fill:{color:f},align:'center',color:IND,bold:true,fontFace:F,fontSize:14}},
-    {text:r.grade,options:{fill:{color:_gc(r.grade)},align:'center',color:W,bold:true,fontFace:F,fontSize:15}},
-    {text:r.level,options:{fill:{color:f},align:'center',color:_gc(r.grade),bold:true,fontFace:F,fontSize:12.5}}]);});
-  s.addTable(rows,{x:0.8,y:1.75,w:11.73,colW:[3.6,1.35,1.35,1.45,1.55,1.0,1.43],rowH:0.62,border:{type:'solid',pt:0.5,color:LINE},valign:'middle'});
-  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:6.25,w:11.73,h:0.7,fill:{color:MINT},line:{color:GREEN,width:1},rectRadius:0.06});
-  s.addText([{text:'สรุป  ',options:{bold:true,color:'0E7A52',fontFace:F}},{text:'คะแนนเฉลี่ยจังหวัด '+D.avg+' คะแนน • ระดับ A จำนวน '+D.nA+' แห่ง'+(D.nB?(' • ระดับ B จำนวน '+D.nB+' แห่ง'):''),options:{color:INK,fontFace:F}}],{x:1.05,y:6.25,w:11.2,h:0.7,fontSize:13,valign:'middle',margin:0});
+ // 3 SCORE SUMMARY
+ {const s=x.addSlide(); hdr(s,'ผลการประเมิน','สรุปคะแนนของหน่วยบริการ');
+  const cards=[['รวม / 100',(+D.r.total).toFixed(2),gcol,true],['7S7C / 64',''+D.r.s7s7c,IND],['7E / 33',''+D.r.e7,IND2],['On-site / 15',D.r.onraw+' ('+D.r.onadj+'/3)',GREEN]];
+  let cx=0.8; const cw=(11.73-0.3*3)/4;
+  cards.forEach((c,i)=>{ s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:1.75,w:cw,h:2.0,fill:{color:c[3]&&i===0?NAVY:W},line:{color:c[2],width:i===0?0:1.3},rectRadius:0.1,shadow:sh()});
+    s.addText(c[0],{x:cx,y:1.95,w:cw,h:0.34,fontFace:F,fontSize:12.5,color:i===0?'C7D2FE':MUT,align:'center',margin:0});
+    s.addText(c[1],{x:cx,y:2.3,w:cw,h:0.9,fontFace:F,fontSize:i===0?40:34,bold:true,color:i===0?W:c[2],align:'center',valign:'middle',margin:0});
+    if(i===0)s.addText('ระดับ '+D.r.grade+' ('+D.r.level+')',{x:cx,y:3.25,w:cw,h:0.34,fontFace:F,fontSize:12,color:'6EE7B7',align:'center',margin:0});
+    cx+=cw+0.3;});
+  // identity strip
+  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:4.0,w:11.73,h:0.95,fill:{color:LAV},rectRadius:0.06});
+  s.addText([{text:'วันที่ประเมิน  ',options:{bold:true,color:INK}},{text:(D.r.date||'-')+'    ',options:{color:MUT}},
+    {text:'ผู้บันทึก  ',options:{bold:true,color:INK}},{text:(D.r.recorder||'-'),options:{color:MUT}}],{x:1.05,y:4.05,w:11.2,h:0.45,fontFace:F,fontSize:11.5,valign:'middle',margin:0});
+  s.addText([{text:'Software  ',options:{bold:true,color:INK}},{text:(D.r.sw||'-')+'      ',options:{color:MUT}},
+    {text:'จำนวนบุคลากร  ',options:{bold:true,color:INK}},{text:(D.r.staff||'-'),options:{color:MUT}}],{x:1.05,y:4.5,w:11.2,h:0.4,fontFace:F,fontSize:11.5,valign:'middle',margin:0});
+  // mini note
+  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:5.15,w:11.73,h:1.0,fill:{color:MINT},line:{color:GREEN,width:1},rectRadius:0.06});
+  const passA=(+D.r.total)>80;
+  s.addText([{text:(passA?'ผ่านเกณฑ์ระดับ A  ':'ยังไม่ผ่านเกณฑ์ระดับ A  '),options:{bold:true,color:passA?'0E7A52':'B45309',fontFace:F}},
+    {text:'คะแนนรวม '+(+D.r.total).toFixed(2)+' / 100 • จุดแข็ง '+D.strong.length+' หมวด • ต้องพัฒนา '+D.improve.length+' หมวด (ขาดรวม '+D.homework.length+' ข้อ)',options:{color:INK,fontFace:F}}],{x:1.05,y:5.15,w:11.2,h:1.0,fontSize:13,valign:'middle',margin:0});
  }
- // 4 PROVINCE FINDINGS
- {const s=x.addSlide(); hdr(s,'การวิเคราะห์','ข้อค้นพบระดับจังหวัด');
+ // 4 SECTION BREAKDOWN
+ {const s=x.addSlide(); hdr(s,'ผลคะแนนรายหมวด','คะแนนรายองค์ประกอบ ('+D.sections.length+' หมวด)');
+  const groups=[['7S7C',IND],['7E',IND2],['ONSITE',GREEN]];
+  let gy=1.65;
+  groups.forEach(([g,gcl])=>{
+    const list=D.sections.filter(z=>z.group===g);
+    s.addShape(x.shapes.RECTANGLE,{x:0.8,y:gy,w:0.12,h:0.34,fill:{color:gcl}});
+    s.addText((g==='ONSITE'?'On-site CSMBS':g)+' ('+list.reduce((a,z)=>a+z.score,0)+'/'+list.reduce((a,z)=>a+z.max,0)+')',{x:1.0,y:gy-0.04,w:11,h:0.34,fontFace:F,fontSize:13.5,color:INK,bold:true,margin:0});
+    gy+=0.42; let cx=0.8,col=0; const perRow=7, cw=(11.73-0.18*(perRow-1))/perRow, chh=0.78;
+    list.forEach(z=>{ if(col===perRow){col=0;cx=0.8;gy+=chh+0.14;}
+      s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:cx,y:gy,w:cw,h:chh,fill:{color:cf(z.score,z.max)},line:{color:ct(z.score,z.max),width:0.75},rectRadius:0.05});
+      s.addText(z.code,{x:cx,y:gy+0.06,w:cw,h:0.26,fontFace:F,fontSize:11,color:ct(z.score,z.max),bold:true,align:'center',margin:0});
+      s.addText(z.score+'/'+z.max,{x:cx,y:gy+0.34,w:cw,h:0.36,fontFace:F,fontSize:15,color:ct(z.score,z.max),bold:true,align:'center',margin:0});
+      cx+=cw+0.18; col++; });
+    gy+=chh+0.34;
+  });
+ }
+ // 5 FINDINGS
+ {const s=x.addSlide(); hdr(s,'ข้อค้นพบ','จุดแข็ง และ จุดที่ต้องพัฒนา');
   s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:1.7,w:5.75,h:4.95,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.08,shadow:sh()});
-  s.addShape(x.shapes.RECTANGLE,{x:0.8,y:1.7,w:5.75,h:0.6,fill:{color:GREEN}});
-  s.addText('จุดเด่นของจังหวัด',{x:1.05,y:1.7,w:5.3,h:0.6,fontFace:F,fontSize:16,color:W,bold:true,valign:'middle',margin:0});
-  s.addText((D.strong.length?D.strong:['—']).map(t=>({text:t+(t!=='—'?' — ครบทุกโรงพยาบาล':''),options:{bullet:{code:'2714'},color:INK,fontFace:F,fontSize:12.5,breakLine:true,paraSpaceAfter:6}})),{x:1.1,y:2.45,w:5.2,h:4.0,valign:'top',margin:0,fit:'shrink'});
+  s.addShape(x.shapes.RECTANGLE,{x:0.8,y:1.7,w:5.75,h:0.58,fill:{color:GREEN}});
+  s.addText('✔  สิ่งที่ทำได้ดี ('+D.strong.length+' หมวด)',{x:1.0,y:1.7,w:5.4,h:0.58,fontFace:F,fontSize:15,color:W,bold:true,valign:'middle',margin:0});
+  s.addText((D.strong.length?D.strong:['—']).map(t=>({text:t+(t!=='—'?' — เต็มคะแนน':''),options:{bullet:{code:'2714'},color:INK,fontFace:F,fontSize:12,breakLine:true,paraSpaceAfter:5}})),{x:1.05,y:2.42,w:5.3,h:4.05,valign:'top',margin:0,fit:'shrink'});
   s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:6.78,y:1.7,w:5.75,h:4.95,fill:{color:W},line:{color:LINE,width:1},rectRadius:0.08,shadow:sh()});
-  s.addShape(x.shapes.RECTANGLE,{x:6.78,y:1.7,w:5.75,h:0.6,fill:{color:'F59E0B'}});
-  s.addText('ประเด็นที่ต้องพัฒนาร่วมกัน',{x:7.03,y:1.7,w:5.3,h:0.6,fontFace:F,fontSize:16,color:W,bold:true,valign:'middle',margin:0});
-  s.addText((D.weak.length?D.weak.slice(0,8):[{name:'ผ่านครบทุกหมวด',notfull:0}]).map(wk=>({text:wk.name+(wk.notfull?(' — '+wk.notfull+'/'+D.N+' แห่งยังไม่ครบ'):''),options:{bullet:{code:'25B8'},color:INK,fontFace:F,fontSize:12.5,breakLine:true,paraSpaceAfter:5}})),{x:7.08,y:2.45,w:5.2,h:4.0,valign:'top',margin:0,fit:'shrink'});
+  s.addShape(x.shapes.RECTANGLE,{x:6.78,y:1.7,w:5.75,h:0.58,fill:{color:'F59E0B'}});
+  s.addText('⚠  สิ่งที่ต้องปรับปรุง ('+D.improve.length+' หมวด)',{x:6.98,y:1.7,w:5.4,h:0.58,fontFace:F,fontSize:15,color:W,bold:true,valign:'middle',margin:0});
+  s.addText((D.improve.length?D.improve:[{name:'ผ่านครบทุกหมวด',miss:0}]).map(z=>({text:z.name+(z.miss?(' — ขาด '+z.miss+' ข้อ'):''),options:{bullet:{code:'25B8'},color:INK,fontFace:F,fontSize:12,breakLine:true,paraSpaceAfter:5}})),{x:7.03,y:2.42,w:5.3,h:4.05,valign:'top',margin:0,fit:'shrink'});
  }
- // 5..N PER HOSPITAL
- D.hosp.forEach((h,i)=>{const s=x.addSlide(); hdr(s,'ผลการประเมินรายโรงพยาบาล ('+(i+1)+'/'+D.N+')',h.r.hospital);
-  const gcol=_gc(h.r.grade);
-  s.addShape(x.shapes.OVAL,{x:11.7,y:0.46,w:0.74,h:0.74,fill:{color:gcol},shadow:sh()});
-  s.addText(h.r.grade,{x:11.7,y:0.46,w:0.74,h:0.74,fontFace:F,fontSize:26,color:W,bold:true,align:'center',valign:'middle',margin:0});
-  // score card
-  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:1.65,w:3.5,h:2.1,fill:{color:NAVY},rectRadius:0.08,shadow:sh()});
-  s.addText((+h.r.total).toFixed(2),{x:0.8,y:1.78,w:3.5,h:0.8,fontFace:F,fontSize:42,color:W,bold:true,align:'center',margin:0});
-  s.addText('คะแนนรวม • ระดับ '+h.r.grade+' ('+h.r.level+')',{x:0.8,y:2.6,w:3.5,h:0.3,fontFace:F,fontSize:11,color:'C7D2FE',align:'center',margin:0});
-  const ms=[['7S7C',h.r.s7s7c+'/64'],['7E',h.r.e7+'/33'],['On-site',h.r.onraw+'/15']];let mx=0.95;const mw=(3.5-0.3)/3;
-  ms.forEach(m=>{s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:mx,y:3.0,w:mw-0.06,h:0.6,fill:{color:'27357E'},rectRadius:0.05});
-    s.addText(m[1],{x:mx,y:3.04,w:mw-0.06,h:0.32,fontFace:F,fontSize:12.5,color:W,bold:true,align:'center',margin:0});
-    s.addText(m[0],{x:mx,y:3.34,w:mw-0.06,h:0.22,fontFace:F,fontSize:8.5,color:'A5B4FC',align:'center',margin:0});mx+=mw;});
-  // strengths
-  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:4.5,y:1.65,w:8.03,h:1.62,fill:{color:'EAFBF3'},line:{color:GREEN,width:1},rectRadius:0.07});
-  s.addText('จุดแข็ง',{x:4.7,y:1.72,w:7.6,h:0.32,fontFace:F,fontSize:13,color:'0E7A52',bold:true,margin:0});
-  s.addText((h.strengths.length?h.strengths:['—']).join('  •  '),{x:4.7,y:2.05,w:7.65,h:1.15,fontFace:F,fontSize:11.5,color:INK,valign:'top',margin:0,fit:'shrink'});
-  // gaps
-  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:4.5,y:3.4,w:8.03,h:1.5,fill:{color:'FEF6E7'},line:{color:'F59E0B',width:1},rectRadius:0.07});
-  s.addText('จุดที่ต้องพัฒนา',{x:4.7,y:3.47,w:7.6,h:0.32,fontFace:F,fontSize:13,color:'B45309',bold:true,margin:0});
-  s.addText((h.gaps.length?h.gaps:['ผ่านครบทุกหมวด']).join('  •  '),{x:4.7,y:3.8,w:7.65,h:1.05,fontFace:F,fontSize:11.5,color:INK,valign:'top',margin:0,fit:'shrink'});
-  // homework
-  s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:0.8,y:5.05,w:11.73,h:1.7,fill:{color:'EEF1FD'},line:{color:IND2,width:1},rectRadius:0.07});
-  s.addText('การบ้าน / ข้อที่ต้องดำเนินการ',{x:1.0,y:5.12,w:11.3,h:0.34,fontFace:F,fontSize:13,color:IND,bold:true,margin:0});
-  const hw=h.homework.length?h.homework.slice(0,8):['ไม่มีข้อที่ต้องแก้ไข ให้รักษามาตรฐานและพัฒนาต่อยอด'];
+ // 6 MISSING ITEMS DETAIL
+ {const s=x.addSlide(); hdr(s,'รายละเอียดข้อที่ต้องปรับปรุง','รายการข้อที่ขาด (ไม่ผ่าน) ทั้งหมด '+D.homework.length+' ข้อ');
+  const runs=[];
+  if(D.improve.length){ D.improve.forEach(z=>{ runs.push({text:'■ '+z.name,options:{color:'B45309',bold:true,fontFace:F,fontSize:12,breakLine:true,paraSpaceBefore:5,paraSpaceAfter:2}});
+    z.fails.forEach(t=>runs.push({text:t,options:{bullet:{code:'25AB'},color:INK,fontFace:F,fontSize:11,indentLevel:1,breakLine:true,paraSpaceAfter:1}})); }); }
+  else runs.push({text:'ผ่านครบทุกข้อ ไม่มีรายการที่ต้องแก้ไข',options:{color:'0E7A52',bold:true,fontFace:F,fontSize:14}});
+  // split into two columns
+  const mid=Math.ceil(runs.length/2);
+  let colA=runs, colB=null;
+  // keep section header with its items: split by section blocks
+  const blocks=[]; let cur=null;
+  runs.forEach(rn=>{ if(rn.options.bold&&rn.options.fontSize===12){cur={head:rn,items:[]};blocks.push(cur);} else if(cur)cur.items.push(rn); else {cur={head:null,items:[rn]};blocks.push(cur);} });
+  const half=Math.ceil(blocks.length/2);
+  const flat=arr=>{const o=[];arr.forEach(b=>{if(b.head)o.push(b.head);b.items.forEach(i=>o.push(i));});return o;};
+  const left=flat(blocks.slice(0,half)), right=flat(blocks.slice(half));
+  s.addText(left,{x:0.8,y:1.65,w:5.75,h:5.4,valign:'top',margin:0,fit:'shrink'});
+  if(right.length)s.addText(right,{x:6.78,y:1.65,w:5.75,h:5.4,valign:'top',margin:0,fit:'shrink'});
+ }
+ // 7 HOMEWORK + GOALS
+ {const s=x.addSlide(); hdr(s,'ข้อแนะนำและเป้าหมาย','การบ้านที่ต้องดำเนินการ และเป้าหมายการพัฒนา');
+  s.addText('การบ้าน / ข้อที่ทีมตรวจให้ดำเนินการ',{x:0.8,y:1.6,w:11,h:0.34,fontFace:F,fontSize:14,color:INK,bold:true,margin:0});
+  const hw=D.homework.length?D.homework:['ไม่มีข้อที่ต้องแก้ไข ให้รักษามาตรฐานและพัฒนาต่อยอด'];
   const half=Math.ceil(hw.length/2);
-  s.addText(hw.slice(0,half).map((t,k)=>({text:(k+1)+'. '+t,options:{color:INK,fontFace:F,fontSize:11,breakLine:true,paraSpaceAfter:3}})),{x:1.0,y:5.46,w:5.7,h:1.2,valign:'top',margin:0,fit:'shrink'});
-  if(hw.length>half)s.addText(hw.slice(half).map((t,k)=>({text:(half+k+1)+'. '+t,options:{color:INK,fontFace:F,fontSize:11,breakLine:true,paraSpaceAfter:3}})),{x:6.85,y:5.46,w:5.7,h:1.2,valign:'top',margin:0,fit:'shrink'});
- });
- // RECO + GOALS
- {const s=x.addSlide(); hdr(s,'ข้อเสนอแนะและเป้าหมาย','แนวทางพัฒนาระดับจังหวัด');
-  const topW=D.weak.slice(0,4).map(w=>w.name);
-  const recs=['เร่งแก้ไขข้อที่ไม่ผ่านในหมวดที่อ่อนที่สุดของจังหวัด: '+(topW.join(', ')||'-'),
-    'จัดทำเกณฑ์ควบคุมอัตราส่วนลูกหนี้ และระบบรายงานลูกหนี้ตามกำหนดเวลาให้ครบทุกแห่ง',
-    'บริหารกระแสเงินสดให้ชำระหนี้การค้า (ค่ายา/เวชภัณฑ์) ภายในกรอบเวลา',
-    'พัฒนาบุคลากร CFO/ทีมสหสาขาวิชาชีพ และสนับสนุนหน่วยบริการที่ยังต่ำกว่าระดับ A เป็นพิเศษ'];
-  s.addText('ข้อเสนอแนะหลัก',{x:0.8,y:1.65,w:11,h:0.34,fontFace:F,fontSize:15,color:INK,bold:true,margin:0});
-  s.addText(recs.map((t,i)=>({text:t,options:{bullet:{code:'25B8'},color:INK,fontFace:F,fontSize:12.5,breakLine:true,paraSpaceAfter:6}})),{x:1.0,y:2.05,w:11.5,h:1.9,valign:'top',margin:0,fit:'shrink'});
-  const tgt=(+D.avg>80)?Math.min(100,Math.ceil(+D.avg+2)):85;
-  const goals=[['ระยะสั้น • ภายใน 1 เดือน',['แก้ไขข้อที่ไม่ผ่านให้แล้วเสร็จ พร้อมหลักฐาน','เร่งหมวดที่อ่อนที่สุดของแต่ละแห่ง'],IND2],
-    ['ระยะกลาง • ภายใน 3 เดือน',['ยกระดับคะแนนรวม ≥ '+tgt+' คะแนน','คงระดับ A ทุกหมวดหลัก ติดตามผลรอบถัดไป'],IND],
-    ['เป้าหมายปีงบประมาณ 2570',['รักษาระดับ A (>80) ทุกไตรมาส','เป็นศูนย์จัดเก็บรายได้คุณภาพต้นแบบระดับเขต'],NAVY]];
+  s.addText(hw.slice(0,half).map((t,k)=>({text:(k+1)+'. '+t,options:{color:INK,fontFace:F,fontSize:11,breakLine:true,paraSpaceAfter:3}})),{x:0.9,y:1.98,w:5.7,h:2.0,valign:'top',margin:0,fit:'shrink'});
+  if(hw.length>half)s.addText(hw.slice(half).map((t,k)=>({text:(half+k+1)+'. '+t,options:{color:INK,fontFace:F,fontSize:11,breakLine:true,paraSpaceAfter:3}})),{x:6.75,y:1.98,w:5.7,h:2.0,valign:'top',margin:0,fit:'shrink'});
+  const tgt=(+D.r.total>80)?Math.min(100,Math.ceil(+D.r.total+2)):85;
+  const goals=[['ระยะสั้น • ภายใน 1 เดือน',['แก้ไขข้อที่ไม่ผ่านทั้ง '+D.homework.length+' ข้อ พร้อมหลักฐาน','เร่งหมวดที่อ่อนที่สุดก่อน'],IND2],
+    ['ระยะกลาง • ภายใน 3 เดือน',['ยกระดับคะแนนรวม ≥ '+tgt+' คะแนน','คงระดับ A ทุกหมวดหลัก ติดตามรอบถัดไป'],IND],
+    ['เป้าหมายปีงบประมาณ 2570',['รักษาระดับ A (>80) ทุกไตรมาส','เป็นต้นแบบศูนย์จัดเก็บรายได้คุณภาพ'],NAVY]];
   let gx=0.8;const gw=(11.73-0.4*2)/3;
-  goals.forEach(g=>{s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:gx,y:4.2,w:gw,h:2.4,fill:{color:g[2]},rectRadius:0.1,shadow:sh()});
-    s.addText(g[0],{x:gx+0.2,y:4.35,w:gw-0.4,h:0.6,fontFace:F,fontSize:13.5,color:W,bold:true,margin:0});
-    s.addText(g[1].map(t=>({text:t,options:{bullet:{code:'2022'},color:'EAEEFF',fontFace:F,fontSize:11.5,breakLine:true,paraSpaceAfter:6}})),{x:gx+0.25,y:5.0,w:gw-0.45,h:1.5,valign:'top',margin:0});gx+=gw+0.4;});
+  goals.forEach(g=>{s.addShape(x.shapes.ROUNDED_RECTANGLE,{x:gx,y:4.3,w:gw,h:2.35,fill:{color:g[2]},rectRadius:0.1,shadow:sh()});
+    s.addText(g[0],{x:gx+0.2,y:4.45,w:gw-0.4,h:0.6,fontFace:F,fontSize:13,color:W,bold:true,margin:0});
+    s.addText(g[1].map(t=>({text:t,options:{bullet:{code:'2022'},color:'EAEEFF',fontFace:F,fontSize:11.5,breakLine:true,paraSpaceAfter:6}})),{x:gx+0.25,y:5.1,w:gw-0.45,h:1.45,valign:'top',margin:0,fit:'shrink'});gx+=gw+0.4;});
  }
- // END
+ // 8 END
  {const s=x.addSlide(); s.background={color:NAVY};
   s.addShape(x.shapes.OVAL,{x:-2,y:3.4,w:6.2,h:6.2,fill:{color:IND,transparency:50},line:{type:'none'}});
   s.addShape(x.shapes.OVAL,{x:10,y:-2.2,w:5.4,h:5.4,fill:{color:GREEN,transparency:55},line:{type:'none'}});
   s.addText('ขอบคุณครับ',{x:0,y:2.7,w:13.333,h:1.1,fontFace:F,fontSize:56,color:W,bold:true,align:'center',margin:0});
   s.addText('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO) จังหวัดหนองบัวลำภู',{x:0,y:3.9,w:13.333,h:0.45,fontFace:F,fontSize:17,color:'6EE7B7',bold:true,align:'center',margin:0});
-  s.addText('ศูนย์จัดเก็บรายได้คุณภาพ (7S7C) • ปีงบประมาณ '+D.y+' '+D.q,{x:0,y:4.45,w:13.333,h:0.4,fontFace:F,fontSize:13,color:'C7D2FE',align:'center',margin:0});
+  s.addText(D.r.hospital+' • ปีงบประมาณ '+D.y+' '+D.q+' รอบที่ '+D.round,{x:0,y:4.45,w:13.333,h:0.4,fontFace:F,fontSize:13,color:'C7D2FE',align:'center',margin:0});
  }
  return x;
 }
@@ -639,101 +654,116 @@ function pdfBuild(D){
  doc.addFileToVFS('SR.ttf',SARABUN_R);doc.addFont('SR.ttf','SR','normal');
  doc.addFileToVFS('SB.ttf',SARABUN_B);doc.addFont('SB.ttf','SR','bold');
  const NAVY='#1E2A78',IND='#4F46E5',IND2='#6366F1',GREEN='#0E9F6E',MINT='#EAFBF3',AMBERBG='#FEF6E7',LAVBG='#EEF1FD',INK='#1F2350',MUT='#6B7280',LINE='#E2E5F5',PALE='#F6F7FD',W='#FFFFFF',AMBER='#B45309';
- const gc=g=>({A:'#0E9F6E',B:'#0EA5E9',C:'#F59E0B',D:'#F97316',F:'#EF4444'}[g]||'#6B7280');
+ const gc=g=>({A:'#0E9F6E',B:'#0EA5E9',C:'#F59E0B',D:'#F97316',F:'#EF4444'}[g]||'#6B7280'); const gcol=gc(D.r.grade);
+ const cf=(v,m)=>{const t=v/m;return t>=1?'#EAFBF3':(t>=0.5?'#FEF6E7':'#FDECEC');};
+ const ct=(v,m)=>{const t=v/m;return t>=1?'#0E7A52':(t>=0.5?'#B45309':'#C0392B');};
  let first=true;
  function page(){if(!first)doc.addPage([960,540],'landscape');first=false;}
- function fill(c){doc.setFillColor(c);} function tcol(c){doc.setTextColor(c);}
- function rrect(xx,yy,ww,hh,c,r){fill(c);doc.roundedRect(xx,yy,ww,hh,r||7,r||7,'F');}
- function rect(xx,yy,ww,hh,c){fill(c);doc.rect(xx,yy,ww,hh,'F');}
- function T(str,xx,yy,o){o=o||{};doc.setFont('SR',o.b?'bold':'normal');doc.setFontSize(o.sz||14);tcol(o.c||INK);
-   if(o.maxw){const L=doc.splitTextToSize(String(str),o.maxw);doc.text(L,xx,yy,{align:o.al||'left',baseline:o.bl||'alphabetic'});return L.length;}
-   doc.text(String(str),xx,yy,{align:o.al||'left',baseline:o.bl||'alphabetic'});return 1;}
- function hdr(eye,title){rect(0,0,960,540,PALE.substr(0));fill(GREEN);doc.rect(40,34,11,44,'F');
+ function fill(c){doc.setFillColor(c);}
+ function rect(a,b,w,h,c){fill(c);doc.rect(a,b,w,h,'F');}
+ function rrect(a,b,w,h,c,r){fill(c);doc.roundedRect(a,b,w,h,r||7,r||7,'F');}
+ function rrectO(a,b,w,h,c,lc,lw,r){fill(c);doc.setDrawColor(lc);doc.setLineWidth(lw||1);doc.roundedRect(a,b,w,h,r||7,r||7,'FD');}
+ function T(str,a,b,o){o=o||{};doc.setFont('SR',o.b?'bold':'normal');doc.setFontSize(o.sz||14);doc.setTextColor(o.c||INK);
+   if(o.maxw){const L=doc.splitTextToSize(String(str),o.maxw);doc.text(L,a,b,{align:o.al||'left',baseline:o.bl||'alphabetic'});return L.length;}
+   doc.text(String(str),a,b,{align:o.al||'left',baseline:o.bl||'alphabetic'});return 1;}
+ function hdr(eye,title){rect(0,0,960,540,PALE);fill(GREEN);doc.rect(40,34,11,44,'F');
    T(eye,60,46,{sz:12,c:IND,b:true,bl:'middle'});T(title,58,70,{sz:21,c:INK,b:true,bl:'middle'});
-   rect(0,528,960,12,NAVY);T('ศูนย์จัดเก็บรายได้คุณภาพ (7S7C) • ปีงบประมาณ '+D.y+' '+D.q+' • จังหวัดหนองบัวลำภู',40,512,{sz:8,c:MUT});}
+   rect(0,528,960,12,NAVY);T(D.r.hospital+' • ปีงบประมาณ '+D.y+' '+D.q+' รอบที่ '+D.round+' • จังหวัดหนองบัวลำภู',40,512,{sz:8,c:MUT});}
  // 1 TITLE
- page(); rect(0,0,960,540,NAVY); fill(IND); doc.circle(860,40,150,'F'); fill(GREEN); doc.circle(60,470,120,'F');
- fill(W);doc.circle(108,118,52,'F');
- try{const p=LOGO_B64;doc.addImage('data:image/jpeg;base64,'+p,'JPEG',70,80,76,76);}catch(e){}
- T('สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู',180,108,{sz:14,c:'#C7D2FE',b:true});
- T('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO)',180,130,{sz:11,c:'#A5B4FC'});
- T('สรุปผลการประเมินศูนย์จัดเก็บรายได้คุณภาพ',70,250,{sz:26,c:W});
- T('ระบบ 7S7C + 7E + On-site CSMBS (100 คะแนน)',70,300,{sz:34,c:W,b:true});
- const chips=[['ปีงบประมาณ','พ.ศ. '+D.y],['ไตรมาส',D.q.replace('Q','')+' / '+D.y],['หน่วยรับประเมิน',D.N+' แห่ง'],['คะแนนเฉลี่ย',D.avg]];
- let cx=70;chips.forEach(c=>{rrect(cx,355,196,66,'#27357E',9);T(c[0],cx+98,378,{sz:10,c:'#A5B4FC',al:'center'});T(c[1],cx+98,402,{sz:15,c:W,b:true,al:'center'});cx+=208;});
- T('เกณฑ์ระดับ A (ดีมาก) มากกว่า 80 คะแนน • ดึงข้อมูลจากระบบประเมินจริง',70,455,{sz:11,c:'#C7D2FE'});
+ page();rect(0,0,960,540,NAVY);fill(IND);doc.circle(860,40,150,'F');fill(GREEN);doc.circle(60,470,120,'F');
+ fill(W);doc.circle(104,112,50,'F');
+ try{doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',68,76,72,72);}catch(e){}
+ T('สำนักงานสาธารณสุขจังหวัดหนองบัวลำภู',172,104,{sz:13,c:'#C7D2FE',b:true});
+ T('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO)',172,126,{sz:11,c:'#A5B4FC'});
+ T('สรุปผลการประเมินศูนย์จัดเก็บรายได้คุณภาพ (7S7C)',70,210,{sz:20,c:'#C7D2FE'});
+ T(D.r.hospital,70,255,{sz:40,c:W,b:true,maxw:640});
+ fill(gcol);doc.circle(840,225,62,'F');T(D.r.grade,840,232,{sz:54,c:W,b:true,al:'center',bl:'middle'});T(D.r.level,840,300,{sz:13,c:W,al:'center'});
+ const chips=[['ปีงบประมาณ','พ.ศ. '+D.y],['ไตรมาส',D.q.replace('Q','')+' / '+D.y],['รอบที่',''+D.round],['คะแนนรวม',(+D.r.total).toFixed(2)]];
+ let cx=70;chips.forEach(c=>{rrect(cx,360,156,64,'#27357E',9);T(c[0],cx+78,382,{sz:10,c:'#A5B4FC',al:'center'});T(c[1],cx+78,406,{sz:15,c:W,b:true,al:'center'});cx+=168;});
+ T('เฉลี่ยจังหวัด '+D.provAvg+' คะแนน (จาก '+D.provN+' แห่ง) • เกณฑ์ระดับ A (ดีมาก) มากกว่า 80 คะแนน',70,455,{sz:11,c:'#C7D2FE'});
  // 2 CRITERIA
  page();hdr('เกณฑ์การประเมิน','โครงสร้างการให้คะแนน รวม 100 คะแนน');
  const cc=[['64','7S7C','ระบบจัดเก็บรายได้คุณภาพ Advance',IND],['33','7E','ระบบการบริหารเจ้าหนี้',IND2],['3','On-site','สิทธิเบิกจ่ายตรงกรมบัญชีกลาง (CSMBS)',GREEN]];
- let px=44;cc.forEach(c=>{rrect(px,100,278,168,W,8);rect(px,100,278,10,c[3]);
-   T(c[0],px+139,180,{sz:46,c:c[3],b:true,al:'center'});T('คะแนน',px+139,200,{sz:11,c:MUT,al:'center'});
-   T(c[1],px+139,228,{sz:18,c:INK,b:true,al:'center'});T(c[2],px+139,250,{sz:10,c:IND,b:true,al:'center',maxw:250});px+=296;});
- T('เกณฑ์การจัดระดับ (Grade)',44,310,{sz:14,c:INK,b:true});
+ let px=44;cc.forEach(c=>{rrect(px,100,278,166,W,8);rect(px,100,278,10,c[3]);
+   T(c[0],px+139,178,{sz:46,c:c[3],b:true,al:'center'});T('คะแนน',px+139,198,{sz:11,c:MUT,al:'center'});
+   T(c[1],px+139,226,{sz:18,c:INK,b:true,al:'center'});T(c[2],px+139,248,{sz:10,c:IND,b:true,al:'center',maxw:250});px+=296;});
+ T('เกณฑ์การจัดระดับ (Grade)',44,308,{sz:14,c:INK,b:true});
  const gg=[['A','ดีมาก','> 80','#0E9F6E'],['B','ดี','71–80','#0EA5E9'],['C','ปานกลาง','61–70','#F59E0B'],['D','พอใช้','51–60','#F97316'],['F','ปรับปรุง','≤ 50','#EF4444']];
- let gx=44;const gw=(872-16*4)/5;gg.forEach(g=>{rrect(gx,326,gw,96,W,6);rect(gx,326,gw,30,g[3]);
-   T(g[0],gx+gw/2,346,{sz:15,c:W,b:true,al:'center',bl:'middle'});T(g[1],gx+gw/2,380,{sz:13,c:INK,b:true,al:'center'});T(g[2]+' คะแนน',gx+gw/2,402,{sz:10,c:MUT,al:'center'});gx+=gw+16;});
- // 3 OVERVIEW TABLE
- page();hdr('ผลการประเมิน','ผลภาพรวมรายโรงพยาบาล');
- const cols=[{w:250,a:'left'},{w:90},{w:90},{w:100},{w:110},{w:80},{w:152}];
- const headT=['โรงพยาบาล','7S7C/64','7E/33','On-site/15','รวม/100','เกรด','ระดับ'];
- let tx=44,ty=104; rect(tx,ty,872,30,NAVY);let cxx=tx;
- headT.forEach((h,i)=>{T(h,cxx+(cols[i].a==='left'?10:cols[i].w/2),ty+20,{sz:11,c:W,b:true,al:cols[i].a==='left'?'left':'center'});cxx+=cols[i].w;});
- ty+=30; D.pool.forEach((r,i)=>{const f=i%2?'#EEF1FD':'#FFFFFF';rect(tx,ty,872,30,f);cxx=tx;
-   const cells=[r.hospital,''+r.s7s7c,''+r.e7,''+r.onraw,(+r.total).toFixed(2),r.grade,r.level];
-   cells.forEach((c,j)=>{if(j===5){fill(gc(r.grade));doc.roundedRect(cxx+cols[5].w/2-15,ty+6,30,18,4,4,'F');T(c,cxx+cols[5].w/2,ty+19,{sz:12,c:W,b:true,al:'center'});}
-     else T(c,cxx+(cols[j].a==='left'?10:cols[j].w/2),ty+20,{sz:11.5,c:(j===4?IND:(j===6?gc(r.grade):INK)),b:(j===4||j===0),al:cols[j].a==='left'?'left':'center'});cxx+=cols[j].w;});ty+=30;});
- rrect(44,ty+12,872,40,MINT,6);T('สรุป  คะแนนเฉลี่ยจังหวัด '+D.avg+' คะแนน • ระดับ A จำนวน '+D.nA+' แห่ง'+(D.nB?(' • ระดับ B จำนวน '+D.nB+' แห่ง'):''),60,ty+37,{sz:12.5,c:INK,b:true});
- // 4 FINDINGS
- page();hdr('การวิเคราะห์','ข้อค้นพบระดับจังหวัด');
- rrect(44,100,420,360,W,8);rect(44,100,420,42,GREEN);T('จุดเด่นของจังหวัด',60,127,{sz:15,c:W,b:true});
- let yy=170;(D.strong.length?D.strong:['—']).slice(0,9).forEach(t=>{T('✔',60,yy,{sz:12,c:'#0E9F6E',b:true});yy+=20*T(t+(t!=='—'?' — ครบทุกโรงพยาบาล':''),82,yy,{sz:12,c:INK,maxw:366})-(20-18);yy+=10;});
- rrect(496,100,420,360,W,8);rect(496,100,420,42,'#F59E0B');T('ประเด็นที่ต้องพัฒนาร่วมกัน',512,127,{sz:15,c:W,b:true});
- yy=170;(D.weak.length?D.weak.slice(0,9):[{name:'ผ่านครบทุกหมวด',notfull:0}]).forEach(wk=>{T('▸',512,yy,{sz:12,c:'#B45309',b:true});const ln=T(wk.name+(wk.notfull?(' — '+wk.notfull+'/'+D.N+' แห่งยังไม่ครบ'):''),534,yy,{sz:12,c:INK,maxw:366});yy+=18*ln+10;});
- // 5..N HOSPITALS
- D.hosp.forEach((h,i)=>{page();hdr('ผลการประเมินรายโรงพยาบาล ('+(i+1)+'/'+D.N+')',h.r.hospital);
-   fill(gc(h.r.grade));doc.circle(900,52,26,'F');T(h.r.grade,900,60,{sz:22,c:W,b:true,al:'center',bl:'middle'});
-   rrect(44,100,250,150,NAVY,8);T((+h.r.total).toFixed(2),169,165,{sz:40,c:W,b:true,al:'center'});
-   T('คะแนนรวม • ระดับ '+h.r.grade+' ('+h.r.level+')',169,188,{sz:11,c:'#C7D2FE',al:'center'});
-   const ms=[['7S7C',h.r.s7s7c+'/64'],['7E',h.r.e7+'/33'],['On-site',h.r.onraw+'/15']];let mx=58;
-   ms.forEach(m=>{rrect(mx,205,68,36,'#27357E',5);T(m[1],mx+34,222,{sz:12,c:W,b:true,al:'center'});T(m[0],mx+34,236,{sz:8,c:'#A5B4FC',al:'center'});mx+=76;});
-   rrect(310,100,606,104,MINT,7);T('จุดแข็ง',326,122,{sz:13,c:'#0E7A52',b:true});
-   T((h.strengths.length?h.strengths:['—']).join('  •  '),326,144,{sz:11.5,c:INK,maxw:574});
-   rrect(310,216,606,116,AMBERBG,7);T('จุดที่ต้องพัฒนา',326,238,{sz:13,c:AMBER,b:true});
-   T((h.gaps.length?h.gaps:['ผ่านครบทุกหมวด']).join('  •  '),326,260,{sz:11.5,c:INK,maxw:574});
-   rrect(44,346,872,150,LAVBG,7);T('การบ้าน / ข้อที่ต้องดำเนินการ',60,368,{sz:13,c:IND,b:true});
-   const hw=h.homework.length?h.homework.slice(0,8):['ไม่มีข้อที่ต้องแก้ไข ให้รักษามาตรฐานและพัฒนาต่อยอด'];
-   const half=Math.ceil(hw.length/2);let hy=390;
-   hw.slice(0,half).forEach((t,k)=>{const ln=T((k+1)+'. '+t,60,hy,{sz:11,c:INK,maxw:420});hy+=15*ln+4;});
-   hy=390;hw.slice(half).forEach((t,k)=>{const ln=T((half+k+1)+'. '+t,498,hy,{sz:11,c:INK,maxw:420});hy+=15*ln+4;});
+ let gx=44;const gw=(872-16*4)/5;gg.forEach(g=>{rrect(gx,322,gw,96,W,6);rect(gx,322,gw,30,g[3]);
+   T(g[0],gx+gw/2,342,{sz:15,c:W,b:true,al:'center',bl:'middle'});T(g[1],gx+gw/2,376,{sz:13,c:INK,b:true,al:'center'});T(g[2]+' คะแนน',gx+gw/2,398,{sz:10,c:MUT,al:'center'});gx+=gw+16;});
+ // 3 SCORE
+ page();hdr('ผลการประเมิน','สรุปคะแนนของหน่วยบริการ');
+ const sc=[['รวม / 100',(+D.r.total).toFixed(2),gcol,true],['7S7C / 64',''+D.r.s7s7c,IND],['7E / 33',''+D.r.e7,IND2],['On-site / 15',D.r.onraw+' ('+D.r.onadj+'/3)',GREEN]];
+ let sx=44;const sw=(872-18*3)/4;
+ sc.forEach((c,i)=>{ if(i===0){rrect(sx,100,sw,128,NAVY,10);}else{rrectO(sx,100,sw,128,W,c[2],1.3,10);}
+   T(c[0],sx+sw/2,128,{sz:12,c:i===0?'#C7D2FE':MUT,al:'center'});
+   T(c[1],sx+sw/2,176,{sz:i===0?34:30,c:i===0?W:c[2],b:true,al:'center',bl:'middle'});
+   if(i===0)T('ระดับ '+D.r.grade+' ('+D.r.level+')',sx+sw/2,210,{sz:12,c:'#6EE7B7',al:'center'}); sx+=sw+18;});
+ rrect(44,250,872,70,LAVBG,6);
+ T('วันที่ประเมิน  '+(D.r.date||'-')+'      ผู้บันทึก  '+(D.r.recorder||'-'),60,278,{sz:11.5,c:INK,maxw:840});
+ T('Software  '+(D.r.sw||'-')+'      จำนวนบุคลากร  '+(D.r.staff||'-'),60,302,{sz:11.5,c:INK,maxw:840});
+ const passA=(+D.r.total)>80;
+ rrect(44,336,872,72,MINT,6);
+ T((passA?'ผ่านเกณฑ์ระดับ A':'ยังไม่ผ่านเกณฑ์ระดับ A'),60,366,{sz:13,c:passA?'#0E7A52':'#B45309',b:true});
+ T('คะแนนรวม '+(+D.r.total).toFixed(2)+' / 100 • จุดแข็ง '+D.strong.length+' หมวด • ต้องพัฒนา '+D.improve.length+' หมวด (ขาดรวม '+D.homework.length+' ข้อ)',60,392,{sz:12,c:INK,maxw:840});
+ // 4 SECTION BREAKDOWN
+ page();hdr('ผลคะแนนรายหมวด','คะแนนรายองค์ประกอบ ('+D.sections.length+' หมวด)');
+ const groups=[['7S7C',IND],['7E',IND2],['ONSITE',GREEN]]; let gy=100;
+ groups.forEach(([g,gcl])=>{ const list=D.sections.filter(z=>z.group===g);
+   fill(gcl);doc.rect(44,gy-10,9,24,'F');
+   T((g==='ONSITE'?'On-site CSMBS':g)+' ('+list.reduce((a,z)=>a+z.score,0)+'/'+list.reduce((a,z)=>a+z.max,0)+')',60,gy+6,{sz:13,c:INK,b:true});
+   gy+=22; let cxx=44,col=0; const perRow=7,cw=(872-12*(perRow-1))/perRow,chh=52;
+   list.forEach(z=>{ if(col===perRow){col=0;cxx=44;gy+=chh+10;}
+     rrectO(cxx,gy,cw,chh,cf(z.score,z.max),ct(z.score,z.max),0.8,5);
+     T(z.code,cxx+cw/2,gy+18,{sz:11,c:ct(z.score,z.max),b:true,al:'center'});
+     T(z.score+'/'+z.max,cxx+cw/2,gy+40,{sz:15,c:ct(z.score,z.max),b:true,al:'center'}); cxx+=cw+12;col++; });
+   gy+=chh+24;
  });
- // RECO + GOALS
- page();hdr('ข้อเสนอแนะและเป้าหมาย','แนวทางพัฒนาระดับจังหวัด');
- const topW=D.weak.slice(0,4).map(w=>w.name);
- const recs=['เร่งแก้ไขข้อที่ไม่ผ่านในหมวดที่อ่อนที่สุดของจังหวัด: '+(topW.join(', ')||'-'),
-   'จัดทำเกณฑ์ควบคุมอัตราส่วนลูกหนี้ และระบบรายงานลูกหนี้ตามกำหนดเวลาให้ครบทุกแห่ง',
-   'บริหารกระแสเงินสดให้ชำระหนี้การค้า (ค่ายา/เวชภัณฑ์) ภายในกรอบเวลา',
-   'พัฒนาบุคลากร CFO/ทีมสหสาขาวิชาชีพ และสนับสนุนหน่วยบริการที่ต่ำกว่าระดับ A เป็นพิเศษ'];
- T('ข้อเสนอแนะหลัก',44,108,{sz:14,c:INK,b:true});let ry=132;
- recs.forEach(t=>{T('▸',50,ry,{sz:12,c:IND,b:true});const ln=T(t,70,ry,{sz:12,c:INK,maxw:846});ry+=18*ln+8;});
- const tgt=(+D.avg>80)?Math.min(100,Math.ceil(+D.avg+2)):85;
- const goals=[['ระยะสั้น • ภายใน 1 เดือน',['แก้ไขข้อที่ไม่ผ่านให้แล้วเสร็จ พร้อมหลักฐาน','เร่งหมวดที่อ่อนที่สุดของแต่ละแห่ง'],IND2],
+ // 5 FINDINGS
+ page();hdr('ข้อค้นพบ','จุดแข็ง และ จุดที่ต้องพัฒนา');
+ rrectO(44,100,420,360,W,LINE,1,8);rect(44,100,420,40,GREEN);T('✔  สิ่งที่ทำได้ดี ('+D.strong.length+' หมวด)',60,125,{sz:14,c:W,b:true});
+ let yy=164;(D.strong.length?D.strong:['—']).forEach(t=>{T('✔',60,yy,{sz:11,c:'#0E9F6E',b:true});const ln=T(t+(t!=='—'?' — เต็มคะแนน':''),80,yy,{sz:11.5,c:INK,maxw:370});yy+=16*ln+7; if(yy>448)return;});
+ rrectO(496,100,420,360,W,LINE,1,8);rect(496,100,420,40,'#F59E0B');T('⚠  สิ่งที่ต้องปรับปรุง ('+D.improve.length+' หมวด)',512,125,{sz:14,c:W,b:true});
+ yy=164;(D.improve.length?D.improve:[{name:'ผ่านครบทุกหมวด',miss:0}]).forEach(z=>{if(yy>448)return;T('▸',512,yy,{sz:11,c:'#B45309',b:true});const ln=T(z.name+(z.miss?(' — ขาด '+z.miss+' ข้อ'):''),532,yy,{sz:11.5,c:INK,maxw:370});yy+=16*ln+7;});
+ // 6 MISSING ITEMS (with pagination)
+ page();hdr('รายละเอียดข้อที่ต้องปรับปรุง','รายการข้อที่ขาด (ไม่ผ่าน) ทั้งหมด '+D.homework.length+' ข้อ');
+ (function(){
+   const colX=[44,496], colW=410; let ci=0, y=104; const top=104, bottom=512, fsz=10.5;
+   function nl(h){ y+=h; if(y>bottom){ if(ci===0){ci=1;y=top;} else { doc.addPage([960,540],'landscape'); hdr('รายละเอียดข้อที่ต้องปรับปรุง (ต่อ)',''); ci=0;y=top; } } }
+   if(!D.improve.length){ T('ผ่านครบทุกข้อ ไม่มีรายการที่ต้องแก้ไข',colX[0],y+6,{sz:14,c:'#0E7A52',b:true}); }
+   D.improve.forEach(z=>{
+     T('■ '+z.name,colX[ci],y+4,{sz:11.5,c:'#B45309',b:true,maxw:colW}); nl(20);
+     z.fails.forEach(t=>{ const lines=doc.splitTextToSize(t,colW-16);
+       T('▫',colX[ci]+2,y+3,{sz:10,c:'#B45309'}); T(lines,colX[ci]+16,y+3,{sz:fsz,c:INK}); nl(13*lines.length+4); });
+     nl(4);
+   });
+ })();
+ // 7 HOMEWORK + GOALS
+ page();hdr('ข้อแนะนำและเป้าหมาย','การบ้านที่ต้องดำเนินการ และเป้าหมายการพัฒนา');
+ T('การบ้าน / ข้อที่ทีมตรวจให้ดำเนินการ',44,104,{sz:14,c:INK,b:true});
+ const hw=D.homework.length?D.homework:['ไม่มีข้อที่ต้องแก้ไข ให้รักษามาตรฐานและพัฒนาต่อยอด'];
+ const half=Math.ceil(hw.length/2); let hy=128;
+ hw.slice(0,half).forEach((t,k)=>{const ln=T((k+1)+'. '+t,44,hy,{sz:10.5,c:INK,maxw:420});hy+=14*ln+4;});
+ hy=128;hw.slice(half).forEach((t,k)=>{const ln=T((half+k+1)+'. '+t,496,hy,{sz:10.5,c:INK,maxw:420});hy+=14*ln+4;});
+ const tgt=(+D.r.total>80)?Math.min(100,Math.ceil(+D.r.total+2)):85;
+ const goals=[['ระยะสั้น • ภายใน 1 เดือน',['แก้ไขข้อที่ไม่ผ่านทั้ง '+D.homework.length+' ข้อ พร้อมหลักฐาน','เร่งหมวดที่อ่อนที่สุดก่อน'],IND2],
    ['ระยะกลาง • ภายใน 3 เดือน',['ยกระดับคะแนนรวม ≥ '+tgt+' คะแนน','คงระดับ A ทุกหมวดหลัก'],IND],
    ['เป้าหมายปีงบประมาณ 2570',['รักษาระดับ A (>80) ทุกไตรมาส','เป็นต้นแบบระดับเขต'],NAVY]];
- let gx2=44;const gw2=(872-16*2)/3;goals.forEach(g=>{rrect(gx2,300,gw2,180,g[2],10);T(g[0],gx2+18,330,{sz:13,c:W,b:true,maxw:gw2-36});
-   let yy2=362;g[1].forEach(t=>{T('•',gx2+18,yy2,{sz:12,c:'#EAEEFF',b:true});const ln=T(t,gx2+34,yy2,{sz:11.5,c:'#EAEEFF',maxw:gw2-50});yy2+=16*ln+8;});gx2+=gw2+16;});
- // END
+ let gx2=44;const gw2=(872-16*2)/3;goals.forEach(g=>{rrect(gx2,318,gw2,178,g[2],10);T(g[0],gx2+18,346,{sz:13,c:W,b:true,maxw:gw2-36});
+   let yy2=378;g[1].forEach(t=>{T('•',gx2+18,yy2,{sz:12,c:'#EAEEFF',b:true});const ln=T(t,gx2+34,yy2,{sz:11,c:'#EAEEFF',maxw:gw2-50});yy2+=15*ln+8;});gx2+=gw2+16;});
+ // 8 END
  page();rect(0,0,960,540,NAVY);fill(IND);doc.circle(80,470,130,'F');fill(GREEN);doc.circle(880,60,120,'F');
  T('ขอบคุณครับ',480,250,{sz:54,c:W,b:true,al:'center'});
  T('คณะกรรมการพัฒนาระบบบริหารการเงินการคลัง (CFO) จังหวัดหนองบัวลำภู',480,300,{sz:16,c:'#6EE7B7',b:true,al:'center'});
- T('ศูนย์จัดเก็บรายได้คุณภาพ (7S7C) • ปีงบประมาณ '+D.y+' '+D.q,480,330,{sz:12,c:'#C7D2FE',al:'center'});
+ T(D.r.hospital+' • ปีงบประมาณ '+D.y+' '+D.q+' รอบที่ '+D.round,480,330,{sz:12,c:'#C7D2FE',al:'center'});
  return doc;
 }
 
 function downloadPPTX(){ try{ if(!window.PptxGenJS){alert('ไลบรารี PptxGenJS ยังโหลดไม่เสร็จ');return;}
-  const D=buildDeck(); const fn='นำเสนอสรุปผล7S7C_'+D.y+'_'+D.q+'.pptx'; pptxBuild(D).writeFile({fileName:fn});
+  const D=buildDeck(); const fn='นำเสนอ7S7C_'+D.r.hospital.replace('รพ.','')+'_'+D.y+'_'+D.q+'_รอบ'+D.round+'.pptx'; pptxBuild(D).writeFile({fileName:fn});
  }catch(e){alert('สร้าง .pptx ไม่สำเร็จ: '+e.message);} }
 function downloadPDF(){ try{ if(!window.jspdf){alert('ไลบรารี jsPDF ยังโหลดไม่เสร็จ');return;}
-  const D=buildDeck(); const fn='นำเสนอสรุปผล7S7C_'+D.y+'_'+D.q+'.pdf'; pdfBuild(D).save(fn);
+  const D=buildDeck(); const fn='นำเสนอ7S7C_'+D.r.hospital.replace('รพ.','')+'_'+D.y+'_'+D.q+'_รอบ'+D.round+'.pdf'; pdfBuild(D).save(fn);
  }catch(e){alert('สร้าง .pdf ไม่สำเร็จ: '+e.message);} }
 
 fy().onchange=()=>{cascade('year');render();};
