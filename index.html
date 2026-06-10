@@ -76,6 +76,9 @@ ul.clean li:before{position:absolute;left:0;top:5px;font-weight:700}
 ul.good li:before{content:"\2714";color:var(--ok)}
 ul.bad li:before{content:"\26A0";color:var(--warn)}
 ul.hw li:before{content:"\270E";color:var(--primary)}
+.sublist{margin-top:5px;display:flex;flex-direction:column;gap:3px}
+.subitem{font-size:11.5px;font-weight:400;color:#5B6178;line-height:1.35;padding-left:16px;position:relative}
+.subitem:before{content:"\25AB";position:absolute;left:0;top:0;color:var(--warn)}
 .goalgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .goalbox{border-radius:14px;padding:15px 16px;color:#fff}
 .goalbox h4{margin:0 0 8px;font-size:14px;font-weight:700}
@@ -293,7 +296,7 @@ function renderSummary(r){
    `<div><div class="minih" style="color:var(--ok)">✔ สิ่งที่ทำได้ดี</div><ul class="clean good">`+
    (a.good.length?a.good.map(n=>`<li>${secShort(n)} — ครบถ้วนเต็มคะแนน</li>`).join(''):'<li>-</li>')+`</ul></div>`+
    `<div><div class="minih" style="color:var(--warn)">⚠ สิ่งที่ต้องปรับปรุง</div><ul class="clean bad">`+
-   (a.improve.length?a.improve.map(s=>`<li>${secShort(s.name)} — ขาด ${s.miss} ข้อ${s.fails.length?' ('+s.fails.length+' รายการ)':''}</li>`).join(''):'<li>ผ่านครบทุกหมวด</li>')+`</ul></div></div></div>`;
+   (a.improve.length?a.improve.map(s=>`<li><b>${secShort(s.name)}</b> — ขาด ${s.miss} ข้อ${s.fails.length?' ('+s.fails.length+' รายการ)':''}`+(s.fails.length?`<div class="sublist">`+s.fails.map(t=>`<div class="subitem">${t}</div>`).join('')+`</div>`:'')+`</li>`).join(''):'<li>ผ่านครบทุกหมวด</li>')+`</ul></div></div></div>`;
  h+=`<div class="sumcard"><h3><span class="dot"></span>ข้อแนะนำ / การบ้านที่ทีมตรวจให้พื้นที่ดำเนินการ</h3>`+
    (homework.length?`<ul class="clean hw">`+homework.map(t=>`<li>${t}</li>`).join('')+`</ul>`:`<p>ไม่มีข้อที่ต้องแก้ไข ให้รักษามาตรฐานและพัฒนาต่อยอดเป็นต้นแบบ</p>`)+`</div>`;
  h+=`<div class="sumcard"><h3><span class="dot"></span>เป้าหมายการพัฒนา (แบ่งตามระยะ)</h3><div class="goalgrid">`+
